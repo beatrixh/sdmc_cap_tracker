@@ -25,21 +25,24 @@ from office365.sharepoint.files.file import File
 import sys
 import os
 ## ---------------------------------------------------------------------------##
+import yaml
+yaml_path = "/home/bhaddock/repos/sdmc_cap_tracker/config.yaml"
+with open(yaml_path, 'r') as file:
+    config = yaml.safe_load(file)
+
+username_shrpt = 'bhaddock@fredhutch.org'
+password_shrpt = config['password']
 
 def main():
-    # pull CAPs --------------------------------------------------------------##
+    # pull data from CAPs ----------------------------------------------------##
     old_stdout = sys.stdout # backup current stdout
     sys.stdout = open(os.devnull, "w")
-    CAP_DOCS, cap_links = compile_CAP_docs_and_fnames()
+    cap_links = read_from_caps()
     sys.stdout = old_stdout # reset old stdout
 
-    # useful for keying into CAP_DOCS
-    cap_links['name'] = cap_links.network + cap_links.protocol
 
-    # parse out CAP version and date of last update ---------------------------##
-    cap_tracking = cap_links.drop(columns=['url','folder'])
-    cap_tracking['header'] = cap_tracking.name.apply(pull_header)
-    cap_tracking = parse_version_and_date(cap_tracking)
+    # parse out version and header -------------------------------------------##
+    cap_tracking = parse_version_and_date(cap_links)
     cap_tracking = cap_tracking.sort_values(by=['network','protocol'])
 
     # report on issues -------------------------------------------------------##
@@ -51,15 +54,11 @@ def main():
     print("\nChecking for CAP updates; unable to resolve the following:")
     print(issues)
 
-    # pull protocol version in CAP -------------------------------------------##
-
-
     # save to csv ------------------------------------------------------------##
     savedir = '/networks/vtn/lab/SDMC_labscience/operations/projects/CAP_projectfiles/project_management_ideas/'
-    usedir = '/networks/vtn/lab/SDMC_labscience/operations/documents/templates/assay/template_testing/'
     today = datetime.date.today().isoformat()
     # cap_tracking.to_excel(savedir + f"CAP_versions_and_dates_{today}.xlsx", index=False)
-    cap_tracking.to_excel(usedir + f"CAP_versions_and_dates_{today}.xlsx", index=False)
+    cap_tracking.to_excel(savedir + f"CAP_versions_and_dates_{today}.xlsx", index=False)
 
     # check diffs ------------------------------------------------------------##
     last_week = (datetime.datetime.now() - datetime.timedelta(days=7)).date().isoformat()
@@ -99,25 +98,57 @@ def main():
     # if changes, report
     if len(diff) > 0:
         # diff.to_excel(savedir + f"updates_{today}.xlsx", index=False)
-        diff.to_excel(usedir + f"updates_{today}.xlsx", index=False)
+        diff.to_excel(savedir + f"updates_{today}.xlsx", index=False)
         print(f"\nChanges in the following rows:")
         print(diff)
 
 
-## HELPERS - pull CAPS from sharepoint ---------------------------------------##
-def compile_CAP_docs_and_fnames():
-    cap_links = pd.read_csv("/home/bhaddock/repos/cap_tracker/cap_sharepoint_links.txt", sep="\t")
+def parse_version_and_date(cap_links):
+    cap_links.header = cap_links.header.str.replace("\t\t\t","\t")
+    cap_links.header = cap_links.header.str.replace("\t\t","\t")
+
+    cap_tracking = cap_links.drop(columns=['url','folder'])
+    cap_tracking['version_and_date_from_header'] = cap_tracking.header.str.split("\t", expand=True)[1]
+
+    cap_tracking['version_from_filename'] = cap_tracking.filename.apply(find_version_number_from_text)
+    cap_tracking['version_from_header'] = cap_tracking.version_and_date_from_header.apply(find_version_number_from_header)
+
+    cap_tracking['date_from_filename'] = cap_tracking.filename.apply(get_date_from_filename)
+    cap_tracking['date_from_header'] = cap_tracking.version_and_date_from_header.apply(get_date_from_text)
+
+    cap_tracking['presumed_version'] = cap_tracking.apply(lambda x: get_presumed_version(x.version_from_header, x.version_from_filename), axis=1)
+    cap_tracking['presumed_date'] = cap_tracking.apply(lambda x: get_presumed_date(x.date_from_header, x.date_from_filename), axis=1)
+
+    cols = [
+        'network',
+        'protocol',
+        'cap_folder_sharepoint_path',
+        'filename',
+        'version_and_date_from_header',
+        'date_from_header',
+        'date_from_filename',
+        'presumed_date',
+        'version_from_header',
+        'version_from_filename',
+        'presumed_version',
+    ]
+    return cap_tracking[cols]
+
+def read_from_caps():
+    cap_links = pd.read_csv("/home/bhaddock/repos/sdmc_cap_tracker/cap_sharepoint_links.txt", sep="\t")
+
     cap_links['filename'] = 'na'
+    cap_links['header'] = 'na'
 
-    CAP_DOCS = {}
     for i, row, in cap_links.iterrows():
-        doc, fname = get_doc_and_filename(row.url, row.folder, row.protocol)
-        CAP_DOCS[row.network + str(row.protocol)] = doc
+        fname, header = get_fname_and_header(row.url, row.folder, row.protocol)
+        # print(f"protocol: {row.protocol} fname: {fname}, header: {header}")
         cap_links.loc[cap_links.protocol==row.protocol,'filename'] = fname
+        cap_links.loc[cap_links.protocol==row.protocol,'header'] = header
 
-    return CAP_DOCS, cap_links
+    return cap_links
 
-def get_doc_and_filename(url, folder, protocol):
+def get_fname_and_header(url, folder, protocol):
     ###Authentication###For authenticating into your sharepoint site###
     ctx_auth = AuthenticationContext(url)
     if ctx_auth.acquire_token_for_user(username_shrpt, password_shrpt):
@@ -167,44 +198,9 @@ def get_doc_and_filename(url, folder, protocol):
     bytes_file_obj.seek(0) #set file object to start
     doc = docx.Document(bytes_file_obj)
 
-    return doc, fname
-
-## HELPERS - pulling CAP version and last updated date -----------------------##
-def pull_header(network_protocol):
-    doc = CAP_DOCS[network_protocol]
     header = doc.sections[0].header
     header_text = '\t'.join([i.text for i in header.paragraphs])
-    return header_text
-
-def parse_version_and_date(cap_tracking):
-    cap_tracking.header = cap_tracking.header.str.replace("\t\t\t","\t")
-    cap_tracking.header = cap_tracking.header.str.replace("\t\t","\t")
-
-    cap_tracking['version_and_date_from_header'] = cap_tracking.header.str.split("\t", expand=True)[1]
-
-    cap_tracking['version_from_filename'] = cap_tracking.filename.apply(find_version_number_from_text)
-    cap_tracking['version_from_header'] = cap_tracking.version_and_date_from_header.apply(find_version_number_from_header)
-
-    cap_tracking['date_from_filename'] = cap_tracking.filename.apply(get_date_from_filename)
-    cap_tracking['date_from_header'] = cap_tracking.version_and_date_from_header.apply(get_date_from_text)
-
-    cap_tracking['presumed_version'] = cap_tracking.apply(lambda x: get_presumed_version(x.version_from_header, x.version_from_filename), axis=1)
-    cap_tracking['presumed_date'] = cap_tracking.apply(lambda x: get_presumed_date(x.date_from_header, x.date_from_filename), axis=1)
-
-    cols = [
-        'network',
-        'protocol',
-        'cap_folder_sharepoint_path',
-        'filename',
-        'version_and_date_from_header',
-        'date_from_header',
-        'date_from_filename',
-        'presumed_date',
-        'version_from_header',
-        'version_from_filename',
-        'presumed_version',
-    ]
-    return cap_tracking[cols]
+    return fname, header_text
 
 def find_version_number_from_text(fname):
     """
@@ -285,46 +281,6 @@ def get_presumed_date(from_header, from_filename):
         return from_header
     if from_header!="NA" and from_filename!="NA":
         return f"{from_header} OR {from_filename}?"
-
-## HELPERS - pulling protocol version from CAP -------------------------------##
-def get_nth_table_as_list(doc, i=0):
-    table = doc.tables[i]
-    l = [['' for i in range(len(table.columns))] for j in range(len(table.rows))]
-    for i, row in enumerate(table.rows):
-        for j, cell in enumerate(row.cells):
-            if cell.text:
-                l[i][j] = cell.text
-    return l
-
-def get_protocol_version_from_last_table(table):
-    i = -1
-    j = len(table)
-    found = 0
-    while found == 0:
-        if -1*i > j:
-           return "Didn't work"
-        row = table[i]
-        seek = [i for i in row if 'protocol version' in i.lower()]
-        if len(seek) > 0:
-            version = np.unique(seek)[0]
-            version = version.replace("\n","")
-            idx = version.lower().index("protocol version")
-            version = version[idx + len("protocol version"):]
-            if len(version)>0:
-                if version[0] == ":":
-                    version = version[1:]
-            else:
-                return "Document being edited"
-            version = version.strip()
-            if len(version) > 0:
-                if version[0].isdigit():
-                    version = "V" + version
-                return version
-            else:
-                return "Document being edited"
-        else:
-            i -= 1
-
 
 if __name__=="__main__":
     main()
