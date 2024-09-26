@@ -1,4 +1,4 @@
-# This repo contains code to pull metadata relating to CAPs
+# Code to pull project tracking data for CAPs
 
 * `cap_sharepoint_links.txt` stores a list of relevant CAPs and links to their sharepoint folders
 * `pull_from_sharepoint.py` pulls the header and filename of each CAP in the above list, from which it finds the current CAP version and last CAP revision date
