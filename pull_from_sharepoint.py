@@ -293,9 +293,7 @@ def get_presumed_version(from_header, from_filename):
     if from_filename=="No version number found":
         return from_header
     elif from_filename!="No version number found":
-        if from_header=="Draft":
-            return from_filename
-        elif from_header=="Trouble parsing due to suggested edits":
+        if from_header in ["Draft", "Trouble parsing due to suggested edits", "No version number found"]:
             return from_filename
         else:
             return f"{from_header} OR {from_filename}?"

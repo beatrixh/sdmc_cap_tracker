@@ -30,29 +30,31 @@ def main():
     ]
     data = data[usecols]
 
-    data.target_or_actual_open_date = data.target_or_actual_open_date.astype(str)
-
     def refine_cap_version(x):
-        if x=='No version number found':
-            return 'Error'
         if 'V0.0 OR ' in x:
             return x[8:-1]
-        if 'No version number found OR ' in x:
-            return x[27:-1]
-        else:
-            return x
-
-    data.cap_version = data.cap_version.map(refine_cap_version)
-
-    def refine_date_cols(x):
-        options = ['NaT', 'NaN', 'Error']
-        if x in options or pd.isnull(x):
+        if x=='No version number found':
             return 'Error'
+        return x
+
+    data.cap_version = data.cap_version.apply(refine_cap_version)
+
+    def refine_last_cap_revision_date(x):
+        if x=="NA":
+            return "Error"
         else:
             return x
 
-    data.last_cap_revision_date = data.last_cap_revision_date.map(refine_date_cols)
-    data.target_or_actual_open_date = data.target_or_actual_open_date.map(refine_date_cols)
+    data.last_cap_revision_date = data.last_cap_revision_date.map(refine_last_cap_revision_date)
+
+    def refine_target_or_actual_open_date(x):
+        if x=="NaT":
+            return "Missing from PBD"
+        else:
+            return x
+
+    data.target_or_actual_open_date = data.target_or_actual_open_date.astype(str)
+    data.target_or_actual_open_date = data.target_or_actual_open_date.map(refine_target_or_actual_open_date)
     save_to_sharepoint(data)
 
 ## ---------------------------------------------------------------------------##
@@ -78,7 +80,7 @@ def save_to_sharepoint(data):
     else:
       print(ctx_auth.get_last_error())
 
-      towrite = io.BytesIO()
+    towrite = io.BytesIO()
     data.to_excel(towrite)
     towrite.seek(0)
 
