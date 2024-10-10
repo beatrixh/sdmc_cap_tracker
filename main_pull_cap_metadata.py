@@ -10,6 +10,11 @@ from pull_from_sharepoint import get_sharepoint_data
 
 from office365.runtime.auth.authentication_context import AuthenticationContext
 from office365.sharepoint.client_context import ClientContext
+from office365.sharepoint.files.file import File
+
+## TODO: pull all rows, update column that notes which rows being updated
+## TODO: add alerts for any protocol in my source sheet not in smartsheet
+## TODO: create alerts for anything that goes wrong
 
 ## pull from pdb/sharepoint, save to sharepoint ------------------------------##
 def main():
@@ -55,10 +60,37 @@ def main():
 
     data.target_or_actual_open_date = data.target_or_actual_open_date.astype(str)
     data.target_or_actual_open_date = data.target_or_actual_open_date.map(refine_target_or_actual_open_date)
-    save_to_sharepoint(data)
+    data['automated'] = True
+
+    ctx = authenticate_into_sharepoint()
+
+    # pull copy of tracker from sharepoint
+    remotepath = '/personal/bhaddock_fredhutch_org/Documents/Documents/sharepoint_stopover/cap_tracker_download.csv'
+    response = File.open_binary(ctx, remotepath)
+    tracker_download = pd.read_csv(io.BytesIO(response.content))
+
+    # Overwrite 'Errors' for protocols where CAP unneeded
+    not_needed_protocols = tracker_download.loc[tracker_download['CAP status']=='Not needed','Protocol (do not change)'].tolist()
+    data.loc[(data.protocol_name.isin(not_needed_protocols)) & (data.cap_version=="Error"), "cap_version"] = "N/A"
+    data.loc[(data.protocol_name.isin(not_needed_protocols)) & (data.last_cap_revision_date=="Error"), "last_cap_revision_date"] = "N/A"
+
+    # save file back to sharepoint
+    towrite = io.BytesIO()
+    data.to_excel(towrite)
+    towrite.seek(0)
+
+    remotepath = '/personal/bhaddock_fredhutch_org/Documents/Documents/sharepoint_stopover/CAP_pulled_data.xlsx'
+    dir, name = os.path.split(remotepath)
+
+    file_content = towrite.getvalue()
+    file = ctx.web.get_folder_by_server_relative_url(dir).upload_file(name, file_content).execute_query()
+
+    protocols_not_in_smartsheet = set(data.protocol_name).difference(tracker_download['Protocol (do not change)'].unique())
+    if len(protocols_not_in_smartsheet) > 0:
+        print(f"Tried to add these protocols, but didn't find match in smartsheet: {list(protocols_not_in_smartsheet)}")
 
 ## ---------------------------------------------------------------------------##
-def save_to_sharepoint(data):
+def authenticate_into_sharepoint():
     yaml_path = "/home/bhaddock/repos/sdmc_cap_tracker/config.yaml"
     with open(yaml_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -80,16 +112,7 @@ def save_to_sharepoint(data):
     else:
       print(ctx_auth.get_last_error())
 
-    towrite = io.BytesIO()
-    data.to_excel(towrite)
-    towrite.seek(0)
-
-    remotepath = '/personal/bhaddock_fredhutch_org/Documents/Documents/sharepoint_stopover/CAP_pulled_data.xlsx'
-    dir, name = os.path.split(remotepath)
-
-    file_content = towrite.getvalue()
-
-    file = ctx.web.get_folder_by_server_relative_url(dir).upload_file(name, file_content).execute_query()
+    return ctx
 
 ## constants -----------------------------------------------------------------##
 name_map = {
