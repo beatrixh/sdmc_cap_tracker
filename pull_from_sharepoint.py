@@ -53,8 +53,8 @@ def get_sharepoint_data():
         (cap_tracking.last_cap_revision_date.str.contains("Error|NA"))
     ), ['network','protocol','cap_version','last_cap_revision_date']]
 
-    print("\nChecking for CAP updates; unable to resolve the following:")
-    print(issues)
+    # print("\nChecking for CAP updates; unable to resolve the following:")
+    # print(issues)
 
     # deprecated -- they didnt actually want this ----------------------------##
     # pull protocol version in CAP

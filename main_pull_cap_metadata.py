@@ -107,7 +107,7 @@ def authenticate_into_sharepoint():
       web = ctx.web
       ctx.load(web)
       ctx.execute_query()
-      print('Authenticated into sharepoint as: ',web.properties['Title'])
+    #   print('Authenticated into sharepoint as: ',web.properties['Title'])
 
     else:
       print(ctx_auth.get_last_error())
@@ -124,7 +124,9 @@ name_map = {
     'HVTN 137': 'HVTN 137',
     'HVTN 139': 'HVTN 139',
     'HVTN 141': 'HVTN 141',
+    'HVTN 142': 'HVTN 142',
     'HVTN 144': 'HVTN 144',
+    'HVTN 206': 'HVTN 206/HPTN 114',
     'HVTN 300': 'HVTN 300',
     'HVTN 301': 'HVTN 301',
     'HVTN 302': 'HVTN 302',
@@ -137,6 +139,7 @@ name_map = {
     'HVTN 312': 'HVTN 312',
     'HVTN 317': 'HVTN 317',
     'HVTN 318': 'HVTN 318',
+    'HVTN 321': 'HVTN 321',
     'HVTN 405': 'HVTN 405',
     'HVTN 606': 'HVTN 606',
     'HVTN 807': 'HVTN 807',
