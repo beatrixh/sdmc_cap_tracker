@@ -7,4 +7,8 @@
 
 Smartsheet pulls from the staging file via data shuttle, updating the CAP at 5AM, 9AM, 1PM, and 5PM every day.
 
+NOTE TO BEATRIX:
+
+To add a new protocol, add to 'cap_sharepoint_links.txt' and also to the name_map in 'main_pull_cap_metadata.py', then verify it's working.
+
 ![CAP Updates Workflow](https://github.com/beatrixh/sdmc_cap_tracker/blob/master/cap_updates_diagram.png?raw=true)
