@@ -140,6 +140,8 @@ name_map = {
     'HVTN 317': 'HVTN 317',
     'HVTN 318': 'HVTN 318',
     'HVTN 321': 'HVTN 321',
+    'HVTN 322': 'HVTN 322 (DV201 + DV20P mRNA)',
+    'HVTN 323': 'HVTN 323 (z-sa 426c NP mRNA)',
     'HVTN 405': 'HVTN 405',
     'HVTN 606': 'HVTN 606',
     'HVTN 807': 'HVTN 807',
