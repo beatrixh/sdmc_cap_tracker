@@ -18,8 +18,13 @@ from office365.sharepoint.files.file import File
 
 ## pull from pdb/sharepoint, save to sharepoint ------------------------------##
 def main():
+    protocols_with_no_CAP_access = [
+    'HVTN145',
+    'HVTN607',
+    ]
+
     pdb_data = get_pdb_data()
-    sharepoint_data = get_sharepoint_data()
+    sharepoint_data = get_sharepoint_data(skip_protocols=protocols_with_no_CAP_access)
 
     data = sharepoint_data.merge(pdb_data, on=['network','protocol'], how='outer')
     data = data.drop(columns=['name','ProtocolName','ProtocolId'])

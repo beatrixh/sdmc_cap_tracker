@@ -31,11 +31,11 @@ with open(yaml_path, 'r') as file:
 username_shrpt = 'bhaddock@fredhutch.org'
 password_shrpt = config['password']
 
-def get_sharepoint_data():
+def get_sharepoint_data(skip_protocols=[]):
     # pull CAPs --------------------------------------------------------------##
     old_stdout = sys.stdout # backup current stdout
     sys.stdout = open(os.devnull, "w")
-    CAP_DOCS, cap_links = compile_CAP_docs_and_fnames()
+    CAP_DOCS, cap_links = compile_CAP_docs_and_fnames(skip_protocols)
     sys.stdout = old_stdout # reset old stdout
 
     # useful for keying into CAP_DOCS
@@ -52,21 +52,6 @@ def get_sharepoint_data():
         (cap_tracking.cap_version.str.contains(" OR |No version number found")) |
         (cap_tracking.last_cap_revision_date.str.contains("Error|NA"))
     ), ['network','protocol','cap_version','last_cap_revision_date']]
-
-    # print("\nChecking for CAP updates; unable to resolve the following:")
-    # print(issues)
-
-    # deprecated -- they didnt actually want this ----------------------------##
-    # pull protocol version in CAP
-    # last_tables = {}
-    # for k in CAP_DOCS.keys():
-    #     try:
-    #         last_tables[k] = get_nth_table_as_list(CAP_DOCS[k], i=-1)
-    #     except:
-    #         last_tables[k] = "ERROR"
-    #
-    # protocol_version_map = {p: get_protocol_version_from_last_table(last_tables[p]) for p in last_tables.keys()}
-    # cap_tracking['most_recent_protocol_version_in_CAP_modification_log'] = (cap_links.network + cap_links.protocol).map(protocol_version_map)
 
     # pull last distributed CAP info -----------------------------------------##
     first_tables = {}
@@ -131,9 +116,12 @@ def get_sharepoint_data():
 
 
 ## HELPERS - pull CAPS from sharepoint ---------------------------------------##
-def compile_CAP_docs_and_fnames():
+def compile_CAP_docs_and_fnames(skip_protocols=[]):
     cap_links = pd.read_csv("/home/bhaddock/repos/sdmc_cap_tracker/cap_sharepoint_links.txt", sep="\t")
     cap_links['filename'] = 'na'
+
+    # exclude protocols we're skipping
+    cap_links = cap_links.loc[~(cap_links.network + cap_links.protocol).isin(skip_protocols)]
 
     CAP_DOCS = {}
     for i, row, in cap_links.iterrows():
